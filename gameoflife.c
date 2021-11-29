@@ -25,7 +25,7 @@ void writeVTK2(long timestep, double *data, char prefix[1024], int localWidth, i
     float deltax = 1.0;
     long nxy = w * h * sizeof(float);
     //printf("NXY:%ld\n", nxy);
-    snprintf(filename, sizeof(filename), "%s_%d-%05ld%s", prefix, threadNumber, timestep, ".vti");
+    snprintf(filename, sizeof(filename), "%s%s_%d-%05ld%s", "vtiFiles/", prefix, threadNumber, timestep, ".vti");
     FILE *fp = fopen(filename, "w");
 
     fprintf(fp, "<?xml version=\"1.0\"?>\n");
