@@ -18,7 +18,7 @@ $(TARGET): $(TARGET).c
 
 run: all
 	$(RM) *.vti
-	OMP_NUM_THREADS=8 ./$(TARGET) 10 10 10 2 2 
+	OMP_NUM_THREADS=8 ./$(TARGET) 1000 10 10 2 2 
 	
 clean:
 	$(RM) $(TARGET)
