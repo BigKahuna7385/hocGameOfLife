@@ -147,7 +147,7 @@ void evolve(double *currentfield, double *newfield, int widthTotal, int heightTo
     writeVTK2(t, currentfield, "gol", widthLocal, heightLocal, threadNumber, originX, originY, widthTotal);
 }
 
-void filling(double *currentfield, int w, int h, char inputConfiguration[])
+void filling(double *currentfield, int w, int h, char *inputConfiguration)
 {
     if (strlen(inputConfiguration) > 0)
     {
@@ -164,7 +164,7 @@ void filling(double *currentfield, int w, int h, char inputConfiguration[])
     }
 }
 
-void readInputConfig(double *currentfield, int width, int height, char inputConfiguration[])
+void readInputConfig(double *currentfield, int width, int height, char *inputConfiguration)
 {
     int i = 0;
     int x = 0;
@@ -262,20 +262,13 @@ void readInputConfig(double *currentfield, int width, int height, char inputConf
     } // printf("The String is: %s | The array size is: %d\n", inputConfiguration, stringLength);
 }
 
-void game(int nX, int nY, int threadX, int threadY, char startingConfiguration[])
+void game(int nX, int nY, int threadX, int threadY, char *inputConfiguration)
 {
     int widthTotal = nX * threadX;
     int heightTotal = nY * threadY;
 
     double *currentfield = calloc(widthTotal * heightTotal, sizeof(double));
     double *newfield = calloc(widthTotal * heightTotal, sizeof(double));
-
-    char inputConfiguration[8000];
-
-    if (strlen(startingConfiguration) > 0)
-        snprintf(inputConfiguration, 8000, startingConfiguration);
-    else
-        snprintf(inputConfiguration, 8000, "");
 
     // printf("Input:\n%s\n", inputConfiguration);
 
@@ -329,7 +322,6 @@ int main(int argc, char *argv[])
     int amountXThreads = 0;
     int amountYThreads = 0;
     char fileName[1024] = "";
-    char readBuffer[8000] = "";
 
     if (argc > 0)
         TimeSteps = atoi(argv[1]);
@@ -341,21 +333,6 @@ int main(int argc, char *argv[])
         amountXThreads = atoi(argv[4]);
     if (argc > 4)
         amountYThreads = atoi(argv[5]);
-    if (argc > 5)
-    {
-        snprintf(fileName, 1024, argv[6]);
-        printf("Filename: %s\n", fileName);
-        FILE *fp;
-        fp = fopen(fileName, "r");
-        if (!fp)
-        {
-            printf("Could not open File.\n");
-            return 1;
-        }
-        fread(readBuffer, sizeof(char), 8000, fp);
-        fclose(fp);
-    }
-    // default:
     if (segmentWidth <= 0)
         segmentWidth = 200;
     if (segmentHeight <= 0)
@@ -367,5 +344,27 @@ int main(int argc, char *argv[])
     if (TimeSteps <= 0)
         TimeSteps = 100;
 
+    int widthTotal = segmentWidth * amountXThreads;
+    int heightTotal = segmentHeight * amountYThreads;
+
+    int bufferSize = widthTotal * heightTotal;
+
+    char *readBuffer = calloc(bufferSize, sizeof(char));
+
+    if (argc > 5)
+    {
+        snprintf(fileName, 1024, argv[6]);
+        printf("Filename: %s\n", fileName);
+        FILE *fp;
+        fp = fopen(fileName, "r");
+        if (!fp)
+        {
+            printf("Could not open File.\n");
+            return 1;
+        }
+        fread(readBuffer, sizeof(char), bufferSize, fp);
+        fclose(fp);
+    }
+    // default:
     game(segmentWidth, segmentHeight, amountXThreads, amountYThreads, readBuffer);
 }
