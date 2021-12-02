@@ -17,8 +17,7 @@ $(TARGET): $(TARGET).c
 
 
 run: all
-	$(RM) *.vti
-	OMP_NUM_THREADS=8 ./$(TARGET) 1000 10 10 2 2 
+	OMP_NUM_THREADS=8 ./$(TARGET) 1 400 800 3 2 StartingConfigurations/pp8primecalculator.rle
 	
 clean:
 	$(RM) $(TARGET)

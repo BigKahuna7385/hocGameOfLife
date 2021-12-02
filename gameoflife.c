@@ -9,6 +9,8 @@
 #include <math.h>
 #include <sys/time.h>
 #include <ctype.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 
@@ -17,16 +19,30 @@ void readInputConfig(double *currentfield, int width, int height, char inputConf
 
 long TimeSteps = 3;
 
+int isDirectoryExists(const char *path)
+{
+    struct stat stats;
+
+    stat(path, &stats);
+
+    if (S_ISDIR(stats.st_mode))
+        return 1;
+
+    return 0;
+}
+
 void writeVTK2(long timestep, double *data, char prefix[1024], int localWidth, int localHeight, int threadNumber, int originX, int originY, int totalWidth)
 {
     char filename[2048];
     int x, y;
     int w = localWidth - originX, h = localHeight - originY;
+    if (isDirectoryExists("vti") == 0)
+        mkdir("vti", 0777);
     int offsetX = originX;
     int offsetY = originY;
     float deltax = 1.0;
     long nxy = w * h * sizeof(float);
-    snprintf(filename, sizeof(filename), "%s_%d-%05ld%s", prefix, threadNumber, timestep, ".vti");
+    snprintf(filename, sizeof(filename), "vti/%s_%d-%05ld%s", prefix, threadNumber, timestep, ".vti");
     FILE *fp = fopen(filename, "w");
 
     fprintf(fp, "<?xml version=\"1.0\"?>\n");
@@ -133,14 +149,19 @@ void evolve(double *currentfield, double *newfield, int widthTotal, int heightTo
 
 void filling(double *currentfield, int w, int h, char inputConfiguration[])
 {
-    // int i;
-
-    readInputConfig(currentfield, w, h, inputConfiguration);
-
-    /*for (i = 0; i < h * w; i++)
+    if (strlen(inputConfiguration) > 0)
     {
-        currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
-    }*/
+        printf("Using starting Data.\n");
+        readInputConfig(currentfield, w, h, inputConfiguration);
+    }
+    else
+    {
+        int i;
+        for (i = 0; i < h * w; i++)
+        {
+            currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
+        }
+    }
 }
 
 void readInputConfig(double *currentfield, int width, int height, char inputConfiguration[])
@@ -152,6 +173,7 @@ void readInputConfig(double *currentfield, int width, int height, char inputConf
     char currentCharacter;
     char nextCharacter;
     int currentDigit;
+    int number;
     bool isComment = true;
 
     while (isComment)
@@ -193,7 +215,7 @@ void readInputConfig(double *currentfield, int width, int height, char inputConf
 
     int yMax = atoi(bufferY);
 
-    // printf("Max x/y: %d/%d\n", xMax, yMax);
+    printf("Max x/y: %d/%d Width/Height: %d/%d\n", xMax, yMax, width, height);
 
     while (inputConfiguration[i] != '!')
     {
@@ -206,26 +228,41 @@ void readInputConfig(double *currentfield, int width, int height, char inputConf
         else if (currentCharacter == 'b')
             x++;
         else if (currentCharacter == 'o')
-            currentfield[calcIndex(width, x, y)] = 1;
+            currentfield[calcIndex(width, x++, y)] = 1;
         else if (isdigit(currentCharacter))
         {
-            currentDigit = currentCharacter - '0';
-            // printf("The Char: %c is digit: %d\n", currentCharacter, currentDigit);
-            nextCharacter = inputConfiguration[++i];
+            char *digitBuffer = calloc(10, sizeof(char));
+            int digitBufferCounter = 0;
+            while (isdigit(inputConfiguration[i]))
+                digitBuffer[digitBufferCounter++] = inputConfiguration[i++];
+
+            number = atoi(digitBuffer);
+            nextCharacter = inputConfiguration[i];
             if (nextCharacter == 'b')
-                x += currentDigit;
+                x += number;
             else if (nextCharacter == 'o')
             {
-                int upperBound = x + currentDigit;
+                // printf("Number: %d |", number);
+                int upperBound = x + number;
+                // printf("UpperBound: %d\n", upperBound);
                 for (; x < upperBound; x++)
+                {
                     currentfield[calcIndex(width, x, y)] = 1;
+                }
             }
+            else if (nextCharacter == '$')
+            {
+                x = 0;
+                y -= number;
+            }
+            else
+                printf("Errorchar: %c\n", nextCharacter);
         }
         i++;
     } // printf("The String is: %s | The array size is: %d\n", inputConfiguration, stringLength);
 }
 
-void game(int nX, int nY, int threadX, int threadY)
+void game(int nX, int nY, int threadX, int threadY, char startingConfiguration[])
 {
     int widthTotal = nX * threadX;
     int heightTotal = nY * threadY;
@@ -233,7 +270,14 @@ void game(int nX, int nY, int threadX, int threadY)
     double *currentfield = calloc(widthTotal * heightTotal, sizeof(double));
     double *newfield = calloc(widthTotal * heightTotal, sizeof(double));
 
-    char inputConfiguration[] = "#N $rats\n#O David Buckingham\n#C A period 6 oscillator found in 1972.\n#C www.conwaylife.com/wiki/index.php?title=$rats\nx = 12, y = 11, rule = B3/S23\n5b2o5b$6bo5b$4bo7b$2obob4o3b$2obo5bobo$3bo2b3ob2o$3bo4bo3b$4b3obo3b$7bo4b$6bo5b$6b2o!";
+    char inputConfiguration[8000];
+
+    if (strlen(startingConfiguration) > 0)
+        snprintf(inputConfiguration, 8000, startingConfiguration);
+    else
+        snprintf(inputConfiguration, 8000, "");
+
+    // printf("Input:\n%s\n", inputConfiguration);
 
     filling(currentfield, widthTotal, heightTotal, inputConfiguration);
 
@@ -265,12 +309,27 @@ void game(int nX, int nY, int threadX, int threadY)
     free(newfield);
 }
 
+char *readFile(char fileName[])
+{
+    FILE *fp;
+    char readBuffer[4096];
+    fp = fopen(fileName, "r");
+    if (!fp)
+        return readBuffer;
+    while (fgets(readBuffer, 4096, fp) != NULL)
+        printf("%s", readBuffer);
+    fclose(fp);
+    return readBuffer;
+}
+
 int main(int argc, char *argv[])
 {
     int segmentWidth = 0;
     int segmentHeight = 0;
     int amountXThreads = 0;
     int amountYThreads = 0;
+    char fileName[1024] = "";
+    char readBuffer[8000] = "";
 
     if (argc > 0)
         TimeSteps = atoi(argv[1]);
@@ -282,7 +341,20 @@ int main(int argc, char *argv[])
         amountXThreads = atoi(argv[4]);
     if (argc > 4)
         amountYThreads = atoi(argv[5]);
-
+    if (argc > 5)
+    {
+        snprintf(fileName, 1024, argv[6]);
+        printf("Filename: %s\n", fileName);
+        FILE *fp;
+        fp = fopen(fileName, "r");
+        if (!fp)
+        {
+            printf("Could not open File.\n");
+            return 1;
+        }
+        fread(readBuffer, sizeof(char), 8000, fp);
+        fclose(fp);
+    }
     // default:
     if (segmentWidth <= 0)
         segmentWidth = 200;
@@ -295,5 +367,5 @@ int main(int argc, char *argv[])
     if (TimeSteps <= 0)
         TimeSteps = 100;
 
-    game(segmentWidth, segmentHeight, amountXThreads, amountYThreads);
+    game(segmentWidth, segmentHeight, amountXThreads, amountYThreads, readBuffer);
 }
