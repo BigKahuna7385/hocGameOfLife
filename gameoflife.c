@@ -8,10 +8,12 @@
 #include <stdbool.h>
 #include <math.h>
 #include <sys/time.h>
+#include <ctype.h>
 
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 
 int countNeighbors(double *currentfield, int x, int y, int w, int h);
+void readInputConfig(double *currentfield, int width, int height, char inputConfiguration[]);
 
 long TimeSteps = 3;
 
@@ -24,7 +26,6 @@ void writeVTK2(long timestep, double *data, char prefix[1024], int localWidth, i
     int offsetY = originY;
     float deltax = 1.0;
     long nxy = w * h * sizeof(float);
-    //printf("NXY:%ld\n", nxy);
     snprintf(filename, sizeof(filename), "%s_%d-%05ld%s", prefix, threadNumber, timestep, ".vti");
     FILE *fp = fopen(filename, "w");
 
@@ -40,19 +41,14 @@ void writeVTK2(long timestep, double *data, char prefix[1024], int localWidth, i
     fprintf(fp, "_");
     fwrite((unsigned char *)&nxy, sizeof(long), 1, fp);
 
-    // printf("\nThread: %d writing...\noriginX/originY:%d/%d localWidth/localHeight: %d/%d\n", threadNumber, originX, originY, w, h);
-
     for (y = originY; y < localHeight; y++)
     {
         for (x = originX; x < localWidth; x++)
         {
             float value = data[calcIndex(totalWidth, x, y)];
-            // if (threadNumber == 0)
-            //     printf("Entry: i: %d, %f | thread:%d\n", calcIndex(totalWidth, x, y), value, threadNumber);
             fwrite((unsigned char *)&value, sizeof(float), 1, fp);
         }
     }
-    //printf("\nThread: %d finished\n", threadNumber);
 
     fprintf(fp, "\n</AppendedData>\n");
     fprintf(fp, "</VTKFile>\n");
@@ -67,7 +63,7 @@ void show(double *currentfield, int w, int h)
     {
         for (x = 0; x < w; x++)
             printf(currentfield[calcIndex(w, x, y)] ? "\033[07m  \033[m" : "  ");
-        //printf("\033[E");
+        // printf("\033[E");
         printf("\n");
     }
     fflush(stdout);
@@ -112,25 +108,18 @@ void evolve(double *currentfield, double *newfield, int widthTotal, int heightTo
 
     int originX = x, originY = y;
 
-    //printf("Thread: %d, localpX: %d, localpY: %d, X:%d,widthLocal: %d, Y:%d, heightLocal: %d\n",threadNumber,localpX,localpY,x,widthLocal,y,heightLocal);
     while (y < heightLocal)
     {
         int neighbors = countNeighbors(currentfield, x, y, widthTotal, heightTotal);
         int index = calcIndex(widthTotal, x, y);
         if (currentfield[index])
             neighbors--;
-        //if (neighbors >= 2)
-        //printf("widthTotal: %d | x/y: %d/%d | Index:%d Neighbors: %d Thread: %d, Am I? %f\n", widthTotal, x, y, index, neighbors, threadNumber, currentfield[index]);
 
         if (neighbors == 3 || (neighbors == 2 && currentfield[index]))
-        {
             newfield[index] = 1;
-            // printf("Test: %f, X/Y: %d/%d\n", newfield[calcIndex(widthTotal, x, y)],x,y);
-        }
         else
-        {
             newfield[index] = 0;
-        }
+
         if (x < widthLocal - 1)
             x++;
         else
@@ -142,14 +131,98 @@ void evolve(double *currentfield, double *newfield, int widthTotal, int heightTo
     writeVTK2(t, currentfield, "gol", widthLocal, heightLocal, threadNumber, originX, originY, widthTotal);
 }
 
-void filling(double *currentfield, int w, int h)
+void filling(double *currentfield, int w, int h, char inputConfiguration[])
 {
-    int i;
+    // int i;
 
-    for (i = 0; i < h * w; i++)
+    readInputConfig(currentfield, w, h, inputConfiguration);
+
+    /*for (i = 0; i < h * w; i++)
     {
         currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
+    }*/
+}
+
+void readInputConfig(double *currentfield, int width, int height, char inputConfiguration[])
+{
+    int i = 0;
+    int x = 0;
+    int y = height - 1;
+
+    char currentCharacter;
+    char nextCharacter;
+    int currentDigit;
+    bool isComment = true;
+
+    while (isComment)
+    {
+        if (inputConfiguration[i] == '#')
+        {
+            isComment = false;
+            while (inputConfiguration[i] != '\n')
+                i++;
+            isComment = inputConfiguration[++i] == '#';
+        }
     }
+
+    int buffIndex = 0;
+    char bufferX[10];
+    if (inputConfiguration[i] == 'x' || inputConfiguration[i] == 'X')
+    {
+        while (isdigit(inputConfiguration[i]) == false)
+            i++;
+        while (isdigit(inputConfiguration[i]))
+            bufferX[buffIndex++] = inputConfiguration[i++];
+    }
+    int xMax = atoi(bufferX);
+
+    while (inputConfiguration[i] != 'y' && inputConfiguration[i] != 'Y')
+        i++;
+
+    char bufferY[10];
+    buffIndex = 0;
+    if (inputConfiguration[i] == 'y' || inputConfiguration[i] == 'Y')
+    {
+        while (isdigit(inputConfiguration[i]) == false)
+            i++;
+        while (isdigit(inputConfiguration[i]))
+            bufferY[buffIndex++] = inputConfiguration[i++];
+        while (inputConfiguration[i] != '\n')
+            i++;
+    }
+
+    int yMax = atoi(bufferY);
+
+    // printf("Max x/y: %d/%d\n", xMax, yMax);
+
+    while (inputConfiguration[i] != '!')
+    {
+        currentCharacter = inputConfiguration[i];
+        if (currentCharacter == '$')
+        {
+            x = 0;
+            y--;
+        }
+        else if (currentCharacter == 'b')
+            x++;
+        else if (currentCharacter == 'o')
+            currentfield[calcIndex(width, x, y)] = 1;
+        else if (isdigit(currentCharacter))
+        {
+            currentDigit = currentCharacter - '0';
+            // printf("The Char: %c is digit: %d\n", currentCharacter, currentDigit);
+            nextCharacter = inputConfiguration[++i];
+            if (nextCharacter == 'b')
+                x += currentDigit;
+            else if (nextCharacter == 'o')
+            {
+                int upperBound = x + currentDigit;
+                for (; x < upperBound; x++)
+                    currentfield[calcIndex(width, x, y)] = 1;
+            }
+        }
+        i++;
+    } // printf("The String is: %s | The array size is: %d\n", inputConfiguration, stringLength);
 }
 
 void game(int nX, int nY, int threadX, int threadY)
@@ -160,7 +233,9 @@ void game(int nX, int nY, int threadX, int threadY)
     double *currentfield = calloc(widthTotal * heightTotal, sizeof(double));
     double *newfield = calloc(widthTotal * heightTotal, sizeof(double));
 
-    filling(currentfield, widthTotal, heightTotal);
+    char inputConfiguration[] = "#N $rats\n#O David Buckingham\n#C A period 6 oscillator found in 1972.\n#C www.conwaylife.com/wiki/index.php?title=$rats\nx = 12, y = 11, rule = B3/S23\n5b2o5b$6bo5b$4bo7b$2obob4o3b$2obo5bobo$3bo2b3ob2o$3bo4bo3b$4b3obo3b$7bo4b$6bo5b$6b2o!";
+
+    filling(currentfield, widthTotal, heightTotal, inputConfiguration);
 
     long t;
     for (t = 0; t < TimeSteps; t++)
@@ -170,17 +245,17 @@ void game(int nX, int nY, int threadX, int threadY)
 #pragma omp parallel num_threads(threadX *threadY)
         {
             int threadNumber = omp_get_thread_num();
-            //printf("Max threads: %d | Used threads: %d | ThreadNr.: %d\n", omp_get_max_threads(), threadY * threadX, threadNumber);
+            // printf("Max threads: %d | Used threads: %d | ThreadNr.: %d\n", omp_get_max_threads(), threadY * threadX, threadNumber);
             evolve(currentfield, newfield, widthTotal, heightTotal, threadNumber, nX, nY, threadX, threadY, t);
         }
 
-        //printf("%ld timestep\n", t);
+        // printf("%ld timestep\n", t);
 
-        //writeVTK2(t, currentfield, "gol", widthTotal, heightTotal);
+        // writeVTK2(t, currentfield, "gol", widthTotal, heightTotal);
 
-        //usleep(100000);
+        // usleep(100000);
 
-        ///SWAP
+        /// SWAP
         double *temp = currentfield;
         currentfield = newfield;
         newfield = temp;
