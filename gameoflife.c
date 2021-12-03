@@ -323,15 +323,15 @@ int main(int argc, char *argv[])
     int amountYThreads = 0;
     char fileName[1024] = "";
 
-    if (argc > 0)
-        TimeSteps = atoi(argv[1]);
     if (argc > 1)
-        segmentWidth = atoi(argv[2]);
+        TimeSteps = atoi(argv[1]);
     if (argc > 2)
-        segmentHeight = atoi(argv[3]);
+        segmentWidth = atoi(argv[2]);
     if (argc > 3)
-        amountXThreads = atoi(argv[4]);
+        segmentHeight = atoi(argv[3]);
     if (argc > 4)
+        amountXThreads = atoi(argv[4]);
+    if (argc > 5)
         amountYThreads = atoi(argv[5]);
     if (segmentWidth <= 0)
         segmentWidth = 200;
@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
 
     char *readBuffer = calloc(bufferSize, sizeof(char));
 
-    if (argc > 5)
+    if (argc > 6)
     {
         snprintf(fileName, 1024, argv[6]);
         printf("Filename: %s\n", fileName);
