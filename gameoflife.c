@@ -172,7 +172,6 @@ void readInputConfig(double *currentfield, int width, int height, char *inputCon
 
     char currentCharacter;
     char nextCharacter;
-    int currentDigit;
     int number;
     bool isComment = true;
 
@@ -302,19 +301,6 @@ void game(int nX, int nY, int threadX, int threadY, char *inputConfiguration)
     free(newfield);
 }
 
-char *readFile(char fileName[])
-{
-    FILE *fp;
-    char readBuffer[4096];
-    fp = fopen(fileName, "r");
-    if (!fp)
-        return readBuffer;
-    while (fgets(readBuffer, 4096, fp) != NULL)
-        printf("%s", readBuffer);
-    fclose(fp);
-    return readBuffer;
-}
-
 int main(int argc, char *argv[])
 {
     int segmentWidth = 0;
@@ -353,7 +339,8 @@ int main(int argc, char *argv[])
 
     if (argc > 6)
     {
-        snprintf(fileName, 1024, argv[6]);
+        snprintf(fileName, sizeof(fileName), "%s", argv[6]);
+
         printf("Filename: %s\n", fileName);
         FILE *fp;
         fp = fopen(fileName, "r");
