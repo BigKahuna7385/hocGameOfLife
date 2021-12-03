@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "unistd.h": "c",
-        "omp.h": "c"
-    },
-    "editor.formatOnSave": true,
-    "editor.formatOnType": true
-}
